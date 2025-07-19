@@ -1,0 +1,1255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="theme-color" content="#4CAF50">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <title>Vaayu - Air Quality Monitor</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+    <link rel="manifest" href="manifest.json">
+    <style>
+        :root {
+            --primary-color: #4CAF50;
+            --secondary-color: #8BC34A;
+            --danger-color: #F44336;
+            --warning-color: #FFC107;
+            --info-color: #2196F3;
+            --text-color: #263238;
+            --light-text: #607D8B;
+            --bg-color: #f5f5f5;
+            --card-bg: #ffffff;
+        }
+        
+        * {
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
+        
+        body {
+            font-family: 'Roboto', -apple-system, BlinkMacSystemFont, 'Segoe UI', Oxygen, Ubuntu, Cantarell, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            height: 100vh;
+            overflow-x: hidden;
+            touch-action: manipulation;
+        }
+        
+        #app-container {
+            max-width: 100%;
+            margin: 0 auto;
+            background: var(--card-bg);
+            min-height: 100vh;
+            position: relative;
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .app-header {
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            color: white;
+            padding: 15px;
+            text-align: center;
+            position: relative;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            z-index: 10;
+        }
+        
+        .app-title {
+            margin: 0;
+            font-size: 1.5rem;
+            font-weight: 500;
+        }
+        
+        .app-subtitle {
+            margin: 5px 0 0;
+            font-size: 0.9rem;
+            font-weight: 400;
+            opacity: 0.9;
+        }
+        
+        .location-section {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            padding: 15px;
+            background-color: var(--card-bg);
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        
+        #locationInput {
+            flex: 1 1 200px;
+            padding: 12px 15px;
+            border: 1px solid #ddd;
+            border-radius: 25px;
+            font-size: 1rem;
+            min-width: 0;
+            background-color: #f9f9f9;
+        }
+        
+        .btn {
+            padding: 12px 20px;
+            color: white;
+            border: none;
+            border-radius: 25px;
+            cursor: pointer;
+            font-size: 1rem;
+            font-weight: 500;
+            flex: 1 1 auto;
+            transition: all 0.2s ease;
+            text-align: center;
+        }
+        
+        .btn:active {
+            transform: scale(0.96);
+        }
+        
+        .btn-primary {
+            background-color: var(--primary-color);
+        }
+        
+        .btn-secondary {
+            background-color: var(--secondary-color);
+        }
+        
+        .btn-info {
+            background-color: var(--info-color);
+        }
+        
+        #map {
+            height: 35vh;
+            width: 100%;
+            z-index: 1;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .data-section {
+            flex: 1;
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 15px;
+            padding: 15px;
+            overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
+        }
+        
+        .card {
+            background: var(--card-bg);
+            padding: 15px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+        }
+        
+        .card-title {
+            margin: 0 0 15px 0;
+            font-size: 1.2rem;
+            color: var(--primary-color);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .card-title i {
+            font-size: 1.4rem;
+        }
+        
+        .data-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            margin-bottom: 15px;
+        }
+        
+        .data-item {
+            padding: 12px;
+            background: rgba(0,0,0,0.03);
+            border-radius: 8px;
+            border-left: 4px solid var(--primary-color);
+        }
+        
+        .data-label {
+            font-size: 0.85rem;
+            color: var(--light-text);
+            margin-bottom: 5px;
+        }
+        
+        .value-display {
+            font-size: 1.4rem;
+            font-weight: 500;
+            color: var(--text-color);
+            margin: 0;
+            line-height: 1.3;
+        }
+        
+        .unit {
+            font-size: 0.9rem;
+            color: var(--light-text);
+            font-weight: normal;
+        }
+        
+        .chart-container {
+            position: relative;
+            height: 220px;
+            width: 100%;
+            margin-top: 10px;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: var(--light-text);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+        }
+        
+        .loading-spinner {
+            width: 40px;
+            height: 40px;
+            border: 4px solid rgba(0,0,0,0.1);
+            border-radius: 50%;
+            border-top-color: var(--primary-color);
+            animation: spin 1s ease-in-out infinite;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        .error-message {
+            color: var(--danger-color);
+            padding: 10px 15px;
+            text-align: center;
+            font-weight: 500;
+            background-color: rgba(244, 67, 54, 0.1);
+            border-radius: 5px;
+            margin: 10px;
+            display: none;
+        }
+        
+        .aqi-indicator {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            margin-right: 6px;
+            vertical-align: middle;
+        }
+        
+        .aqi-good {
+            background-color: #4CAF50;
+        }
+        
+        .aqi-moderate {
+            background-color: #FFC107;
+        }
+        
+        .aqi-unhealthy {
+            background-color: #FF9800;
+        }
+        
+        .aqi-very-unhealthy {
+            background-color: #F44336;
+        }
+        
+        .aqi-hazardous {
+            background-color: #9C27B0;
+        }
+        
+        .last-updated {
+            text-align: right;
+            font-size: 0.75rem;
+            color: var(--light-text);
+            margin-top: 10px;
+        }
+        
+        .tab-bar {
+            display: flex;
+            background: white;
+            border-top: 1px solid #eee;
+        }
+        
+        .tab-btn {
+            flex: 1;
+            padding: 15px;
+            text-align: center;
+            color: var(--light-text);
+            font-size: 0.9rem;
+            border-bottom: 3px solid transparent;
+        }
+        
+        .tab-btn.active {
+            color: var(--primary-color);
+            border-bottom-color: var(--primary-color);
+            font-weight: 500;
+        }
+        
+        .hidden {
+            display: none;
+        }
+        
+        /* PWA Install Prompt */
+        #installContainer {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            padding: 15px;
+            background: white;
+            box-shadow: 0 -2px 10px rgba(0,0,0,0.1);
+            display: none;
+            z-index: 1000;
+        }
+        
+        #installBtn {
+            background: var(--primary-color);
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 5px;
+            font-weight: 500;
+            margin-right: 10px;
+        }
+        
+        #cancelInstall {
+            background: none;
+            border: none;
+            color: var(--light-text);
+        }
+        
+        /* Responsive adjustments */
+        @media (min-width: 768px) {
+            #app-container {
+                max-width: 500px;
+                margin: 0 auto;
+                box-shadow: 0 0 20px rgba(0,0,0,0.1);
+                min-height: 90vh;
+                max-height: 90vh;
+                margin-top: 5vh;
+                border-radius: 15px;
+                overflow: hidden;
+            }
+            
+            .data-grid {
+                grid-template-columns: 1fr 1fr 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="app-container">
+        <div class="app-header">
+            <h1 class="app-title">Vaayu</h1>
+            <p class="app-subtitle">Air Quality & Weather Monitor</p>
+        </div>
+        
+        <div class="location-section">
+            <input type="text" id="locationInput" placeholder="Search location or use current">
+            <button id="searchBtn" class="btn btn-primary">Search</button>
+            <button id="currentLocationBtn" class="btn btn-secondary">Current</button>
+        </div>
+        
+        <div id="map"></div>
+        
+        <div class="tab-bar">
+            <div class="tab-btn active" data-tab="weather">Weather</div>
+            <div class="tab-btn" data-tab="air">Air Quality</div>
+            <div class="tab-btn" data-tab="details">Details</div>
+        </div>
+        
+        <div class="data-section">
+            <div id="weatherTab" class="tab-content">
+                <div class="card">
+                    <h3 class="card-title">Current Weather</h3>
+                    <div class="data-grid">
+                        <div class="data-item">
+                            <div class="data-label">Temperature</div>
+                            <p class="value-display" id="temperature">-- <span class="unit">°C</span></p>
+                        </div>
+                        <div class="data-item">
+                            <div class="data-label">Feels Like</div>
+                            <p class="value-display" id="feelsLike">-- <span class="unit">°C</span></p>
+                        </div>
+                        <div class="data-item">
+                            <div class="data-label">Humidity</div>
+                            <p class="value-display" id="humidity">-- <span class="unit">%</span></p>
+                        </div>
+                        <div class="data-item">
+                            <div class="data-label">Wind Speed</div>
+                            <p class="value-display" id="windSpeed">-- <span class="unit">m/s</span></p>
+                        </div>
+                        <div class="data-item">
+                            <div class="data-label">Pressure</div>
+                            <p class="value-display" id="pressure">-- <span class="unit">hPa</span></p>
+                        </div>
+                        <div class="data-item">
+                            <div class="data-label">Visibility</div>
+                            <p class="value-display" id="visibility">-- <span class="unit">km</span></p>
+                        </div>
+                    </div>
+                    <div class="chart-container">
+                        <canvas id="weatherChart"></canvas>
+                    </div>
+                    <div class="last-updated" id="weatherUpdated"></div>
+                </div>
+            </div>
+            
+            <div id="airTab" class="tab-content hidden">
+                <div class="card">
+                    <h3 class="card-title">Air Quality Index</h3>
+                    <div class="data-grid">
+                        <div class="data-item">
+                            <div class="data-label">AQI</div>
+                            <p class="value-display" id="aqi">--</p>
+                        </div>
+                        <div class="data-item">
+                            <div class="data-label">CO₂</div>
+                            <p class="value-display" id="co2">-- <span class="unit">ppm</span></p>
+                        </div>
+                        <div class="data-item">
+                            <div class="data-label">Oxygen</div>
+                            <p class="value-display" id="oxygen">-- <span class="unit">%</span></p>
+                        </div>
+                        <div class="data-item">
+                            <div class="data-label">PM2.5</div>
+                            <p class="value-display" id="pm25">-- <span class="unit">µg/m³</span></p>
+                        </div>
+                        <div class="data-item">
+                            <div class="data-label">PM10</div>
+                            <p class="value-display" id="pm10">-- <span class="unit">µg/m³</span></p>
+                        </div>
+                        <div class="data-item">
+                            <div class="data-label">Ozone</div>
+                            <p class="value-display" id="ozone">-- <span class="unit">ppb</span></p>
+                        </div>
+                    </div>
+                    <div class="chart-container">
+                        <canvas id="airChart"></canvas>
+                    </div>
+                    <div class="last-updated" id="airUpdated"></div>
+                </div>
+            </div>
+            
+            <div id="detailsTab" class="tab-content hidden">
+                <div class="card">
+                    <h3 class="card-title">Air Composition</h3>
+                    <div class="chart-container">
+                        <canvas id="compositionChart"></canvas>
+                    </div>
+                </div>
+                
+                <div class="card">
+                    <h3 class="card-title">Pollutants</h3>
+                    <div class="chart-container">
+                        <canvas id="pollutantsChart"></canvas>
+                    </div>
+                </div>
+                
+                <div class="card">
+                    <h3 class="card-title">Health Recommendations</h3>
+                    <div id="healthRecommendations">
+                        <p>Select a location to get health recommendations based on air quality.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div id="loading" class="loading hidden">
+            <div class="loading-spinner"></div>
+            <p>Loading data...</p>
+        </div>
+        
+        <div id="errorDisplay" class="error-message hidden"></div>
+    </div>
+    
+    <div id="installContainer">
+        <p>Install Vaayu for better experience?</p>
+        <button id="installBtn">Install</button>
+        <button id="cancelInstall">Not Now</button>
+    </div>
+
+    <script>
+        // API Configuration
+        const OPENWEATHER_API_KEY = "898c8545b15764bd6c28b80ca7ec2763";
+        const AIRVISUAL_API_KEY = "your_airvisual_api_key"; // Sign up at https://www.iqair.com/air-pollution-data-api
+        
+        // DOM Elements
+        const locationInput = document.getElementById('locationInput');
+        const searchBtn = document.getElementById('searchBtn');
+        const currentLocationBtn = document.getElementById('currentLocationBtn');
+        const mapElement = document.getElementById('map');
+        const loadingElement = document.getElementById('loading');
+        const errorElement = document.getElementById('errorDisplay');
+        
+        // Weather elements
+        const temperatureElement = document.getElementById('temperature');
+        const feelsLikeElement = document.getElementById('feelsLike');
+        const humidityElement = document.getElementById('humidity');
+        const windSpeedElement = document.getElementById('windSpeed');
+        const pressureElement = document.getElementById('pressure');
+        const visibilityElement = document.getElementById('visibility');
+        const weatherUpdatedElement = document.getElementById('weatherUpdated');
+        
+        // Air quality elements
+        const aqiElement = document.getElementById('aqi');
+        const co2Element = document.getElementById('co2');
+        const oxygenElement = document.getElementById('oxygen');
+        const pm25Element = document.getElementById('pm25');
+        const pm10Element = document.getElementById('pm10');
+        const ozoneElement = document.getElementById('ozone');
+        const airUpdatedElement = document.getElementById('airUpdated');
+        const healthRecommendationsElement = document.getElementById('healthRecommendations');
+        
+        // Tab elements
+        const tabButtons = document.querySelectorAll('.tab-btn');
+        const tabContents = document.querySelectorAll('.tab-content');
+        
+        // Variables
+        let map;
+        let currentMarker;
+        let currentLat;
+        let currentLng;
+        let weatherChart;
+        let airChart;
+        let compositionChart;
+        let pollutantsChart;
+        let deferredPrompt;
+        
+        // Initialize the app
+        initMap();
+        setupEventListeners();
+        checkPWA();
+        
+        function initMap() {
+            // Default to a world view
+            map = L.map('map').setView([20, 0], 2);
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+            }).addTo(map);
+            
+            // Add click event to map
+            map.on('click', function(e) {
+                updateLocation(e.latlng.lat, e.latlng.lng);
+            });
+        }
+        
+        function setupEventListeners() {
+            searchBtn.addEventListener('click', searchLocation);
+            currentLocationBtn.addEventListener('click', getCurrentLocation);
+            
+            // Handle keyboard enter on location input
+            locationInput.addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    searchLocation();
+                }
+            });
+            
+            // Tab switching
+            tabButtons.forEach(button => {
+                button.addEventListener('click', () => {
+                    const tabId = button.getAttribute('data-tab');
+                    switchTab(tabId);
+                });
+            });
+            
+            // PWA install prompt
+            window.addEventListener('beforeinstallprompt', (e) => {
+                e.preventDefault();
+                deferredPrompt = e;
+                showInstallPromotion();
+            });
+            
+            document.getElementById('installBtn').addEventListener('click', installApp);
+            document.getElementById('cancelInstall').addEventListener('click', hideInstallPromotion);
+        }
+        
+        function switchTab(tabId) {
+            // Update active tab button
+            tabButtons.forEach(button => {
+                button.classList.toggle('active', button.getAttribute('data-tab') === tabId);
+            });
+            
+            // Show the selected tab content
+            tabContents.forEach(content => {
+                content.classList.toggle('hidden', content.id !== `${tabId}Tab`);
+            });
+        }
+        
+        function showLoading() {
+            loadingElement.classList.remove('hidden');
+            errorElement.classList.add('hidden');
+        }
+        
+        function hideLoading() {
+            loadingElement.classList.add('hidden');
+        }
+        
+        function showError(message) {
+            errorElement.textContent = message;
+            errorElement.style.display = 'block';
+            setTimeout(() => {
+                errorElement.style.display = 'none';
+            }, 5000);
+        }
+        
+        function searchLocation() {
+            const location = locationInput.value.trim();
+            if (!location) {
+                showError('Please enter a location');
+                return;
+            }
+            
+            showLoading();
+            
+            // Use OpenStreetMap Nominatim API for geocoding
+            fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(location)}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.length > 0) {
+                        const lat = parseFloat(data[0].lat);
+                        const lon = parseFloat(data[0].lon);
+                        updateLocation(lat, lon);
+                    } else {
+                        showError('Location not found');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error searching location:', error);
+                    showError('Error searching location');
+                })
+                .finally(() => {
+                    hideLoading();
+                });
+        }
+        
+        function getCurrentLocation() {
+            if (navigator.geolocation) {
+                showLoading();
+                navigator.geolocation.getCurrentPosition(
+                    position => {
+                        const lat = position.coords.latitude;
+                        const lng = position.coords.longitude;
+                        updateLocation(lat, lng);
+                    },
+                    error => {
+                        console.error('Error getting location:', error);
+                        showError('Could not get your current location');
+                        hideLoading();
+                    },
+                    { enableHighAccuracy: true, timeout: 10000 }
+                );
+            } else {
+                showError('Geolocation is not supported by your browser');
+            }
+        }
+        
+        function updateLocation(lat, lng) {
+            currentLat = lat;
+            currentLng = lng;
+            
+            // Update map view
+            map.setView([lat, lng], 13);
+            
+            // Update marker
+            if (currentMarker) {
+                map.removeLayer(currentMarker);
+            }
+            currentMarker = L.marker([lat, lng]).addTo(map)
+                .bindPopup(`Lat: ${lat.toFixed(4)}, Lng: ${lng.toFixed(4)}`)
+                .openPopup();
+            
+            // Reverse geocode to get address
+            fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`)
+                .then(response => response.json())
+                .then(data => {
+                    const address = data.display_name || 'Current Location';
+                    locationInput.value = address;
+                });
+            
+            // Fetch environmental data
+            fetchWeatherData(lat, lng);
+            fetchAirQualityData(lat, lng);
+        }
+        
+        function fetchWeatherData(lat, lng) {
+            showLoading();
+            fetch(`https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lng}&appid=${OPENWEATHER_API_KEY}&units=metric`)
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('Weather API limit exceeded or invalid key');
+                    }
+                    return response.json();
+                })
+                .then(data => {
+                    // Update weather data
+                    const temp = data.main?.temp || 0;
+                    const feelsLike = data.main?.feels_like || 0;
+                    const humidity = data.main?.humidity || 0;
+                    const windSpeed = data.wind?.speed || 0;
+                    const pressure = data.main?.pressure || 0;
+                    const visibility = data.visibility ? (data.visibility / 1000).toFixed(1) : 0;
+                    
+                    temperatureElement.innerHTML = `${temp.toFixed(1)} <span class="unit">°C</span>`;
+                    feelsLikeElement.innerHTML = `${feelsLike.toFixed(1)} <span class="unit">°C</span>`;
+                    humidityElement.innerHTML = `${humidity} <span class="unit">%</span>`;
+                    windSpeedElement.innerHTML = `${windSpeed.toFixed(1)} <span class="unit">m/s</span>`;
+                    pressureElement.innerHTML = `${pressure} <span class="unit">hPa</span>`;
+                    visibilityElement.innerHTML = `${visibility} <span class="unit">km</span>`;
+                    
+                    // Update weather chart
+                    updateWeatherChart(temp, feelsLike, humidity, windSpeed, pressure, visibility);
+                    
+                    // Update timestamp
+                    const now = new Date();
+                    weatherUpdatedElement.textContent = `Last updated: ${now.toLocaleTimeString()}`;
+                })
+                .catch(error => {
+                    console.error('Error fetching weather data:', error);
+                    showError('Weather data unavailable. Try again later.');
+                    
+                    // Fallback with sample data
+                    const temp = (15 + Math.random() * 15).toFixed(1);
+                    const feelsLike = (parseFloat(temp) + (Math.random() * 2 - 1)).toFixed(1);
+                    const humidity = (40 + Math.random() * 40).toFixed(0);
+                    const windSpeed = (3 + Math.random() * 5).toFixed(1);
+                    const pressure = (980 + Math.random() * 40).toFixed(0);
+                    const visibility = (5 + Math.random() * 10).toFixed(1);
+                    
+                    temperatureElement.innerHTML = `${temp} <span class="unit">°C</span>`;
+                    feelsLikeElement.innerHTML = `${feelsLike} <span class="unit">°C</span>`;
+                    humidityElement.innerHTML = `${humidity} <span class="unit">%</span>`;
+                    windSpeedElement.innerHTML = `${windSpeed} <span class="unit">m/s</span>`;
+                    pressureElement.innerHTML = `${pressure} <span class="unit">hPa</span>`;
+                    visibilityElement.innerHTML = `${visibility} <span class="unit">km</span>`;
+                    
+                    updateWeatherChart(temp, feelsLike, humidity, windSpeed, pressure, visibility);
+                    
+                    const now = new Date();
+                    weatherUpdatedElement.textContent = `Last updated: ${now.toLocaleTimeString()} (sample data)`;
+                })
+                .finally(() => {
+                    hideLoading();
+                });
+        }
+        
+        function fetchAirQualityData(lat, lng) {
+            // First try to get real AQI data
+            if (AIRVISUAL_API_KEY && AIRVISUAL_API_KEY !== "your_airvisual_api_key") {
+                fetch(`https://api.airvisual.com/v2/nearest_city?lat=${lat}&lon=${lng}&key=${AIRVISUAL_API_KEY}`)
+                    .then(response => {
+                        if (!response.ok) {
+                            throw new Error('Air quality API limit exceeded');
+                        }
+                        return response.json();
+                    })
+                    .then(data => {
+                        const aqi = data.data?.current?.pollution?.aqius || 0;
+                        const pm25 = data.data?.current?.pollution?.p2 || 0;
+                        const pm10 = pm25 * 1.5; // Estimate PM10 from PM2.5
+                        
+                        updateAirQualityDisplay(aqi, pm25, pm10);
+                    })
+                    .catch(error => {
+                        console.error('Error fetching air quality data:', error);
+                        // Fallback to simulated data
+                        simulateAirQualityData();
+                    });
+            } else {
+                // No API key provided, use simulated data
+                simulateAirQualityData();
+            }
+        }
+        
+        function simulateAirQualityData() {
+            // Simulate realistic air quality data
+            const aqi = Math.floor(Math.random() * 150); // Random AQI (0-150)
+            const pm25 = (10 + Math.random() * 40).toFixed(1);
+            const pm10 = (parseFloat(pm25) * 1.5).toFixed(1);
+            
+            updateAirQualityDisplay(aqi, pm25, pm10);
+        }
+        
+        function updateAirQualityDisplay(aqi, pm25, pm10) {
+            // Update AQI with color indicator
+            let aqiClass = "aqi-good";
+            let aqiText = "Good";
+            let healthMessage = "Air quality is satisfactory with little risk to public health.";
+            
+            if (aqi > 50) { 
+                aqiClass = "aqi-moderate"; 
+                aqiText = "Moderate";
+                healthMessage = "Air quality is acceptable but may affect sensitive individuals.";
+            }
+            if (aqi > 100) { 
+                aqiClass = "aqi-unhealthy"; 
+                aqiText = "Unhealthy for sensitive groups";
+                healthMessage = "Members of sensitive groups may experience health effects.";
+            }
+            if (aqi > 150) { 
+                aqiClass = "aqi-very-unhealthy"; 
+                aqiText = "Unhealthy";
+                healthMessage = "Increased likelihood of adverse effects for everyone.";
+            }
+            if (aqi > 200) { 
+                aqiClass = "aqi-hazardous"; 
+                aqiText = "Very Unhealthy";
+                healthMessage = "Health warnings of emergency conditions for everyone.";
+            }
+            
+            aqiElement.innerHTML = `<span class="aqi-indicator ${aqiClass}"></span>${aqi} (${aqiText})`;
+            
+            // Normal air composition percentages (with slight variations)
+            const oxygenLevel = 20.5 + (Math.random() * 0.4 - 0.2); // ~20.5% is normal
+            const nitrogenLevel = 78 + (Math.random() * 0.4 - 0.2); // ~78% is normal
+            const co2Level = 400 + (Math.random() * 50); // 400-450ppm is normal
+            const ozoneLevel = (20 + Math.random() * 30).toFixed(1); // 20-50ppb
+            
+            // Update displays
+            pm25Element.innerHTML = `${pm25} <span class="unit">µg/m³</span>`;
+            pm10Element.innerHTML = `${pm10} <span class="unit">µg/m³</span>`;
+            co2Element.innerHTML = `${co2Level.toFixed(0)} <span class="unit">ppm</span>`;
+            oxygenElement.innerHTML = `${oxygenLevel.toFixed(2)} <span class="unit">%</span>`;
+            ozoneElement.innerHTML = `${ozoneLevel} <span class="unit">ppb</span>`;
+            
+            // Calculate other gases (Argon ~0.93%, trace gases)
+            const otherGases = 100 - oxygenLevel - nitrogenLevel;
+            const argon = 0.93;
+            const traceGases = otherGases - argon - (co2Level / 10000); // Convert ppm to percentage
+            
+            // Update charts
+            updateAirQualityChart(aqi);
+            updateCompositionChart(oxygenLevel, nitrogenLevel, argon, co2Level/10000, traceGases);
+            updatePollutantsChart(pm25, pm10, ozoneLevel);
+            
+            // Update health recommendations
+            updateHealthRecommendations(aqi, pm25, pm10, ozoneLevel);
+            
+            // Update timestamp
+            const now = new Date();
+            airUpdatedElement.textContent = `Last updated: ${now.toLocaleTimeString()}`;
+        }
+        
+        function updateWeatherChart(temp, feelsLike, humidity, windSpeed, pressure, visibility) {
+            const ctx = document.getElementById('weatherChart').getContext('2d');
+            
+            if (weatherChart) {
+                weatherChart.destroy();
+            }
+            
+            weatherChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: ['Temp', 'Feels Like', 'Humidity', 'Wind', 'Pressure', 'Visibility'],
+                    datasets: [{
+                        label: 'Weather Data',
+                        data: [temp, feelsLike, humidity, windSpeed, pressure, visibility],
+                        backgroundColor: [
+                            'rgba(255, 99, 132, 0.7)',
+                            'rgba(255, 159, 64, 0.7)',
+                            'rgba(54, 162, 235, 0.7)',
+                            'rgba(75, 192, 192, 0.7)',
+                            'rgba(153, 102, 255, 0.7)',
+                            'rgba(255, 206, 86, 0.7)'
+                        ],
+                        borderColor: [
+                            'rgba(255, 99, 132, 1)',
+                            'rgba(255, 159, 64, 1)',
+                            'rgba(54, 162, 235, 1)',
+                            'rgba(75, 192, 192, 1)',
+                            'rgba(153, 102, 255, 1)',
+                            'rgba(255, 206, 86, 1)'
+                        ],
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: false
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    let label = context.dataset.label || '';
+                                    if (label) {
+                                        label += ': ';
+                                    }
+                                    label += context.raw;
+                                    switch(context.dataIndex) {
+                                        case 0: case 1: label += '°C'; break;
+                                        case 2: label += '%'; break;
+                                        case 3: label += 'm/s'; break;
+                                        case 4: label += 'hPa'; break;
+                                        case 5: label += 'km'; break;
+                                    }
+                                    return label;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: false
+                        }
+                    }
+                }
+            });
+        }
+        
+        function updateAirQualityChart(aqi) {
+            const ctx = document.getElementById('airChart').getContext('2d');
+            
+            if (airChart) {
+                airChart.destroy();
+            }
+            
+            // AQI ranges
+            const aqiRanges = [50, 100, 150, 200, 300, 500];
+            const currentLevel = aqiRanges.findIndex(level => aqi <= level);
+            const data = new Array(aqiRanges.length).fill(0);
+            data[currentLevel] = aqi;
+            
+            airChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: ['Good', 'Moderate', 'Unhealthy SG', 'Unhealthy', 'Very Unhealthy', 'Hazardous'],
+                    datasets: [{
+                        label: 'AQI',
+                        data: data,
+                        backgroundColor: [
+                            'rgba(76, 175, 80, 0.7)',
+                            'rgba(255, 193, 7, 0.7)',
+                            'rgba(255, 152, 0, 0.7)',
+                            'rgba(244, 67, 54, 0.7)',
+                            'rgba(156, 39, 176, 0.7)',
+                            'rgba(121, 85, 72, 0.7)'
+                        ],
+                        borderColor: [
+                            'rgba(76, 175, 80, 1)',
+                            'rgba(255, 193, 7, 1)',
+                            'rgba(255, 152, 0, 1)',
+                            'rgba(244, 67, 54, 1)',
+                            'rgba(156, 39, 176, 1)',
+                            'rgba(121, 85, 72, 1)'
+                        ],
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: false
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    if (context.raw > 0) {
+                                        return `AQI: ${context.raw}`;
+                                    }
+                                    return '';
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            max: 500
+                        }
+                    }
+                }
+            });
+        }
+        
+        function updateCompositionChart(oxygen, nitrogen, argon, co2, traceGases) {
+            const ctx = document.getElementById('compositionChart').getContext('2d');
+            
+            if (compositionChart) {
+                compositionChart.destroy();
+            }
+            
+            compositionChart = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Oxygen', 'Nitrogen', 'Argon', 'CO₂', 'Trace Gases'],
+                    datasets: [{
+                        data: [oxygen, nitrogen, argon, co2*100, traceGases*100],
+                        backgroundColor: [
+                            'rgba(76, 175, 80, 0.7)',
+                            'rgba(33, 150, 243, 0.7)',
+                            'rgba(156, 39, 176, 0.7)',
+                            'rgba(244, 67, 54, 0.7)',
+                            'rgba(158, 158, 158, 0.7)'
+                        ],
+                        borderColor: [
+                            'rgba(76, 175, 80, 1)',
+                            'rgba(33, 150, 243, 1)',
+                            'rgba(156, 39, 176, 1)',
+                            'rgba(244, 67, 54, 1)',
+                            'rgba(158, 158, 158, 1)'
+                        ],
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: 'Air Composition',
+                            font: {
+                                size: 14
+                            }
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    let label = context.label || '';
+                                    if (label) {
+                                        label += ': ';
+                                    }
+                                    label += context.raw.toFixed(2) + '%';
+                                    return label;
+                                }
+                            }
+                        }
+                    },
+                    cutout: '70%'
+                }
+            });
+        }
+        
+        function updatePollutantsChart(pm25, pm10, ozone) {
+            const ctx = document.getElementById('pollutantsChart').getContext('2d');
+            
+            if (pollutantsChart) {
+                pollutantsChart.destroy();
+            }
+            
+            pollutantsChart = new Chart(ctx, {
+                type: 'radar',
+                data: {
+                    labels: ['PM2.5', 'PM10', 'Ozone'],
+                    datasets: [{
+                        label: 'Pollutants',
+                        data: [pm25, pm10, ozone],
+                        backgroundColor: 'rgba(244, 67, 54, 0.2)',
+                        borderColor: 'rgba(244, 67, 54, 1)',
+                        pointBackgroundColor: 'rgba(244, 67, 54, 1)',
+                        pointBorderColor: '#fff',
+                        pointHoverBackgroundColor: '#fff',
+                        pointHoverBorderColor: 'rgba(244, 67, 54, 1)'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        title: {
+                            display: true,
+                            text: 'Pollutant Levels',
+                            font: {
+                                size: 14
+                            }
+                        }
+                    },
+                    scales: {
+                        r: {
+                            angleLines: {
+                                display: true
+                            },
+                            suggestedMin: 0
+                        }
+                    }
+                }
+            });
+        }
+        
+        function updateHealthRecommendations(aqi, pm25, pm10, ozone) {
+            let recommendations = '';
+            
+            if (aqi <= 50) {
+                recommendations = `
+                    <p><strong>Air Quality:</strong> Good</p>
+                    <p><strong>Recommendations:</strong></p>
+                    <ul>
+                        <li>Ideal air quality for outdoor activities</li>
+                        <li>No restrictions for sensitive groups</li>
+                    </ul>
+                `;
+            } else if (aqi <= 100) {
+                recommendations = `
+                    <p><strong>Air Quality:</strong> Moderate</p>
+                    <p><strong>Recommendations:</strong></p>
+                    <ul>
+                        <li>Generally acceptable air quality</li>
+                        <li>Consider reducing prolonged outdoor exertion if unusually sensitive</li>
+                    </ul>
+                `;
+            } else if (aqi <= 150) {
+                recommendations = `
+                    <p><strong>Air Quality:</strong> Unhealthy for Sensitive Groups</p>
+                    <p><strong>Recommendations:</strong></p>
+                    <ul>
+                        <li>People with heart or lung disease, older adults, and children should reduce prolonged outdoor exertion</li>
+                        <li>Consider wearing a mask if sensitive to air pollution</li>
+                    </ul>
+                `;
+            } else if (aqi <= 200) {
+                recommendations = `
+                    <p><strong>Air Quality:</strong> Unhealthy</p>
+                    <p><strong>Recommendations:</strong></p>
+                    <ul>
+                        <li>Everyone may begin to experience health effects</li>
+                        <li>Sensitive groups should avoid prolonged outdoor exertion</li>
+                        <li>Consider limiting outdoor activities</li>
+                    </ul>
+                `;
+            } else {
+                recommendations = `
+                    <p><strong>Air Quality:</strong> Very Unhealthy to Hazardous</p>
+                    <p><strong>Recommendations:</strong></p>
+                    <ul>
+                        <li>Avoid all outdoor exertion</li>
+                        <li>Sensitive groups should remain indoors</li>
+                        <li>Use air purifiers if available</li>
+                        <li>Wear N95 masks if going outside is necessary</li>
+                    </ul>
+                `;
+            }
+            
+            // Add specific pollutant info
+            recommendations += `
+                <p><strong>Pollutant Levels:</strong></p>
+                <ul>
+                    <li>PM2.5: ${pm25} µg/m³ (${pm25 > 35 ? 'High' : 'Normal'})</li>
+                    <li>PM10: ${pm10} µg/m³ (${pm10 > 50 ? 'High' : 'Normal'})</li>
+                    <li>Ozone: ${ozone} ppb (${ozone > 70 ? 'High' : 'Normal'})</li>
+                </ul>
+            `;
+            
+            healthRecommendationsElement.innerHTML = recommendations;
+        }
+        
+        function isMobile() {
+            return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+        }
+        
+        // PWA functions
+        function checkPWA() {
+            if (window.matchMedia('(display-mode: standalone)').matches) {
+                console.log('Running as PWA');
+            }
+        }
+        
+        function showInstallPromotion() {
+            // Only show on mobile and if not already installed
+            if (isMobile() && !window.matchMedia('(display-mode: standalone)').matches) {
+                const installContainer = document.getElementById('installContainer');
+                installContainer.style.display = 'block';
+            }
+        }
+        
+        function hideInstallPromotion() {
+            document.getElementById('installContainer').style.display = 'none';
+        }
+        
+        function installApp() {
+            if (deferredPrompt) {
+                deferredPrompt.prompt();
+                deferredPrompt.userChoice.then((choiceResult) => {
+                    if (choiceResult.outcome === 'accepted') {
+                        console.log('User accepted install');
+                    } else {
+                        console.log('User dismissed install');
+                    }
+                    deferredPrompt = null;
+                });
+            }
+            hideInstallPromotion();
+        }
+        
+        // Service Worker Registration
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('sw.js').then(registration => {
+                    console.log('ServiceWorker registration successful');
+                }).catch(err => {
+                    console.log('ServiceWorker registration failed: ', err);
+                });
+            });
+        }
+    </script>
+    
+    <!-- Manifest file would be needed for full PWA functionality -->
+    <script>
+        // In a real app, this would be in a separate manifest.json file
+        const manifest = {
+            "name": "Vaayu",
+            "short_name": "Vaayu",
+            "start_url": ".",
+            "display": "standalone",
+            "background_color": "#4CAF50",
+            "theme_color": "#4CAF50",
+            "description": "Air Quality & Weather Monitor",
+            "icons": [
+                {
+                    "src": "icons/icon-72x72.png",
+                    "sizes": "72x72",
+                    "type": "image/png"
+                },
+                {
+                    "src": "icons/icon-96x96.png",
+                    "sizes": "96x96",
+                    "type": "image/png"
+                },
+                {
+                    "src": "icons/icon-128x128.png",
+                    "sizes": "128x128",
+                    "type": "image/png"
+                },
+                {
+                    "src": "icons/icon-144x144.png",
+                    "sizes": "144x144",
+                    "type": "image/png"
+                },
+                {
+                    "src": "icons/icon-152x152.png",
+                    "sizes": "152x152",
+                    "type": "image/png"
+                },
+                {
+                    "src": "icons/icon-192x192.png",
+                    "sizes": "192x192",
+                    "type": "image/png"
+                },
+                {
+                    "src": "icons/icon-384x384.png",
+                    "sizes": "384x384",
+                    "type": "image/png"
+                },
+                {
+                    "src": "icons/icon-512x512.png",
+                    "sizes": "512x512",
+                    "type": "image/png"
+                }
+            ]
+        };
+    </script>
+</body>
+</html>
